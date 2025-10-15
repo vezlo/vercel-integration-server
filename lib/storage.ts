@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabaseClient } from './supabase';
 import { Account, Installation, VercelOAuthToken } from '@/types';
 import { encrypt, decrypt } from './encryption';
 
@@ -6,7 +6,7 @@ import { encrypt, decrypt } from './encryption';
 export async function createAccount(tokenData: VercelOAuthToken): Promise<Account> {
   const encryptedToken = encrypt(tokenData.access_token);
   
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('accounts')
     .upsert({
       vercel_user_id: tokenData.user_id,
@@ -24,7 +24,7 @@ export async function createAccount(tokenData: VercelOAuthToken): Promise<Accoun
 }
 
 export async function getAccountByVercelUserId(vercelUserId: string): Promise<Account | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('accounts')
     .select('*')
     .eq('vercel_user_id', vercelUserId)
@@ -35,7 +35,7 @@ export async function getAccountByVercelUserId(vercelUserId: string): Promise<Ac
 }
 
 export async function getAccountByUuid(uuid: string): Promise<Account | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('accounts')
     .select('*')
     .eq('uuid', uuid)
@@ -46,7 +46,7 @@ export async function getAccountByUuid(uuid: string): Promise<Account | null> {
 }
 
 export async function getAccountById(id: number): Promise<Account | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('accounts')
     .select('*')
     .eq('id', id)
@@ -57,7 +57,7 @@ export async function getAccountById(id: number): Promise<Account | null> {
 }
 
 export async function getDecryptedToken(accountId: number): Promise<string | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('accounts')
     .select('access_token')
     .eq('id', accountId)
@@ -78,7 +78,7 @@ export async function createInstallation(
   accountId: number,
   appName: string = 'assistant-server'
 ): Promise<Installation> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('installations')
     .insert({
       installation_id: installationId,
@@ -94,7 +94,7 @@ export async function createInstallation(
 }
 
 export async function getInstallationByUuid(uuid: string): Promise<Installation | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('installations')
     .select('*')
     .eq('uuid', uuid)
@@ -105,7 +105,7 @@ export async function getInstallationByUuid(uuid: string): Promise<Installation 
 }
 
 export async function getInstallationById(installationId: string): Promise<Installation | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('installations')
     .select('*')
     .eq('installation_id', installationId)
@@ -119,7 +119,7 @@ export async function updateInstallation(
   uuid: string,
   updates: Partial<Installation>
 ): Promise<Installation | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('installations')
     .update({
       ...updates,
