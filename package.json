@@ -1,0 +1,58 @@
+{
+  "name": "vercel-integration-server",
+  "version": "1.0.0",
+  "description": "Vercel Integration Server for AI Assistant deployment",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "@types/uuid": "^10.0.0",
+    "axios": "^1.6.0",
+    "crypto-js": "^4.2.0",
+    "next": "^14.2.0",
+    "next-swagger-doc": "^0.4.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "swagger-ui-react": "^5.11.0",
+    "uuid": "^13.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.0",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/swagger-ui-react": "^4.18.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.2.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "vercel",
+    "integration",
+    "ai",
+    "assistant",
+    "deployment",
+    "oauth"
+  ],
+  "author": "Vezlo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vezlo/vercel-integration-server"
+  },
+  "homepage": "https://vezlo.org"
+}
