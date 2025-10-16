@@ -18,12 +18,7 @@ export class VercelAPIClient {
     // Add request interceptor for logging
     this.client.interceptors.request.use(
       (config) => {
-        console.log(`🔵 VERCEL API REQUEST: ${config.method?.toUpperCase()} ${config.url}`);
-        console.log('📤 Request Headers:', config.headers);
-        console.log('📤 Request Params:', config.params);
-        if (config.data) {
-          console.log('📤 Request Body:', JSON.stringify(config.data, null, 2));
-        }
+        console.log(`🔵 API CALL: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
       },
       (error) => {
@@ -35,19 +30,11 @@ export class VercelAPIClient {
     // Add response interceptor for logging
     this.client.interceptors.response.use(
       (response) => {
-        console.log(`🟢 VERCEL API RESPONSE: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
-        console.log('📥 Response Headers:', response.headers);
-        console.log('📥 Response Data:', JSON.stringify(response.data, null, 2));
+        console.log(`🟢 API SUCCESS: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
         return response;
       },
       (error) => {
-        console.log(`🔴 VERCEL API ERROR: ${error.response?.status || 'NO_STATUS'} ${error.config?.method?.toUpperCase()} ${error.config?.url}`);
-        if (error.response) {
-          console.log('📥 Error Response Headers:', error.response.headers);
-          console.log('📥 Error Response Data:', JSON.stringify(error.response.data, null, 2));
-        } else {
-          console.log('📥 Error Message:', error.message);
-        }
+        console.log(`🔴 API ERROR: ${error.response?.status || 'NO_STATUS'} ${error.config?.method?.toUpperCase()} ${error.config?.url}`);
         return Promise.reject(error);
       }
     );
@@ -84,7 +71,7 @@ export class VercelAPIClient {
 
   // Get integration configuration (to retrieve selected projects)
   async getIntegrationConfiguration(configurationId: string): Promise<VercelIntegrationConfiguration> {
-    console.log('🔍 Getting integration configuration:', configurationId);
+    console.log('🔵 API CALL: GET /v1/integrations/configuration');
     const response = await this.client.get(`/v1/integrations/configuration/${configurationId}`);
     return response.data;
   }
@@ -121,7 +108,7 @@ export class VercelAPIClient {
       return envRepoId;
     }
 
-    console.log('🔍 Getting GitHub repo ID from API for:', repoPath);
+    console.log('🔵 API CALL: GET GitHub API for repo ID');
     
     try {
       // Use GitHub API to get repository ID
@@ -133,7 +120,7 @@ export class VercelAPIClient {
       });
       
       const repoId = response.data.id.toString();
-      console.log('✅ GitHub repo ID found via API:', repoId);
+      console.log('✅ GitHub repo ID found:', repoId);
       return repoId;
     } catch (error) {
       console.error('❌ Failed to get GitHub repo ID:', error);
@@ -143,7 +130,7 @@ export class VercelAPIClient {
 
   // Import GitHub repository to Vercel
   async importGitHubRepo(repoPath: string, projectName: string) {
-    console.log('📥 Importing GitHub repo:', repoPath);
+    console.log('🔵 API CALL: POST /v10/projects/import');
     
     const response = await this.client.post('/v10/projects/import', {
       name: projectName,
@@ -176,18 +163,12 @@ export class VercelAPIClient {
 
     // Get integration configuration to retrieve selected projects
     const config = await this.getIntegrationConfiguration(configurationId);
-    console.log('📋 Integration configuration:', {
-      projectSelection: config.projectSelection,
-      projects: config.projects,
-      scopes: config.scopes
-    });
 
     // Use the first project (simplified logic)
     let projectId: string;
     if (config.projects && config.projects.length > 0) {
       // Use the first selected project
       projectId = config.projects[0];
-      console.log('📦 Using first selected project:', projectId);
     } else {
       // If no specific projects, get all projects and use the first one
       const projects = await this.getProjects();
@@ -195,7 +176,6 @@ export class VercelAPIClient {
         throw new Error('No projects found in the account');
       }
       projectId = projects[0].id;
-      console.log('📦 Using first available project:', projects[0].name);
     }
 
     // Set environment variables on the project
@@ -205,8 +185,7 @@ export class VercelAPIClient {
     }
 
     // Deploy using repoId-based gitSource
-    console.log('🚀 Triggering Git-based deployment (repoId)...');
-    console.log('🔄 Getting GitHub repo ID and deploying...');
+    console.log('🔵 API CALL: POST /v13/deployments');
     const repoId = await this.getGitHubRepoId(repoPath);
 
     const deployment = await this.client.post('/v13/deployments', {
@@ -220,7 +199,7 @@ export class VercelAPIClient {
       },
     });
 
-    console.log('✅ Deployment created with GitHub repo ID:', deployment.data.id);
+    console.log('✅ Deployment created:', deployment.data.id);
     return {
       project: { id: projectId, name: 'assistant-server' },
       deployment: deployment.data,
