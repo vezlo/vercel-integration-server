@@ -159,7 +159,11 @@ VERCEL_REDIRECT_URI=https://[your-ngrok-id].ngrok.io/api/oauth/callback
 
 ### 5. Completion
 - User sees success page with deployment details
-- Migration URL is provided for database setup
+- Three setup URLs are provided for post-deployment configuration:
+  1. **Migration URL**: Creates database schema and tables
+  2. **Seed Default Data URL**: Populates database with default configuration
+  3. **Generate API Key URL**: Creates default API key for src-to-kb library
+- All URLs use the same migration key for authentication
 - User completes integration by returning to Vercel
 
 ## 📁 Project Structure

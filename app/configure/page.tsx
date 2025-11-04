@@ -30,6 +30,7 @@ function ConfigurationForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [deploymentData, setDeploymentData] = useState<any>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Temporary success state for local testing
   const isSuccessState = tempSuccess === 'true' || success;
@@ -108,6 +109,21 @@ function ConfigurationForm() {
     }
   };
 
+  const copyToClipboard = async (url: string, urlId: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(urlId);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const truncateUrl = (url: string, maxLength: number = 60) => {
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength) + '...';
+  };
+
   // Check if configurationId is provided
   if (!configurationId) {
     return (
@@ -181,7 +197,7 @@ function ConfigurationForm() {
                   </div>
                 </div>
 
-                {/* Migration Instructions */}
+                {/* Database Setup Instructions */}
                 {deploymentData?.migrationSecretKey && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                     <div className="flex items-center mb-4">
@@ -191,16 +207,152 @@ function ConfigurationForm() {
                       <h3 className="text-lg font-semibold text-green-800">Database Setup</h3>
                     </div>
                     <div className="bg-white p-4 rounded-md border">
-                      <p className="text-gray-700 mb-3">Once your deployment is complete, run the database migrations to set up the schema:</p>
-                      <div className="bg-gray-50 p-3 rounded border">
-                        <p className="text-xs text-gray-600 mb-1"><strong>Migration URL:</strong></p>
-                        <p className="text-xs text-gray-800 break-all font-mono">
-                          <a href={`${deploymentData.deploymentUrl}/api/migrate?key=${deploymentData.migrationSecretKey}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            {deploymentData.deploymentUrl}/api/migrate?key={deploymentData.migrationSecretKey}
+                      <p className="text-gray-700 mb-4">Once your deployment is complete, run these setup steps in order:</p>
+                      
+                      <div className="space-y-4">
+                        {/* Migration URL */}
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-700">1. Migration</span>
+                              <div className="group relative">
+                                <svg className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                </svg>
+                                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
+                                  Creates all necessary database tables and functions for the Assistant Server
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(`${deploymentData.deploymentUrl}/api/migrate?key=${deploymentData.migrationSecretKey}`, 'migrate')}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy URL"
+                            >
+                              {copiedUrl === 'migrate' ? (
+                                <>
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <a
+                            href={`${deploymentData.deploymentUrl}/api/migrate?key=${deploymentData.migrationSecretKey}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline font-mono block truncate"
+                            title={`${deploymentData.deploymentUrl}/api/migrate?key=${deploymentData.migrationSecretKey}`}
+                          >
+                            {truncateUrl(`${deploymentData.deploymentUrl}/api/migrate?key=${deploymentData.migrationSecretKey}`)}
                           </a>
-                        </p>
+                        </div>
+
+                        {/* Seed Default Data URL */}
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-700">2. Seed Default Data</span>
+                              <div className="group relative">
+                                <svg className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                </svg>
+                                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
+                                  Populates the database with default configuration data and initial settings
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(`${deploymentData.deploymentUrl}/api/seed-default?key=${deploymentData.migrationSecretKey}`, 'seed')}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy URL"
+                            >
+                              {copiedUrl === 'seed' ? (
+                                <>
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <a
+                            href={`${deploymentData.deploymentUrl}/api/seed-default?key=${deploymentData.migrationSecretKey}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline font-mono block truncate"
+                            title={`${deploymentData.deploymentUrl}/api/seed-default?key=${deploymentData.migrationSecretKey}`}
+                          >
+                            {truncateUrl(`${deploymentData.deploymentUrl}/api/seed-default?key=${deploymentData.migrationSecretKey}`)}
+                          </a>
+                        </div>
+
+                        {/* Generate API Key URL */}
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-700">3. Generate API Key</span>
+                              <div className="group relative">
+                                <svg className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                </svg>
+                                <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
+                                  Creates a default API key for src-to-kb library to send content to the Assistant Server
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(`${deploymentData.deploymentUrl}/api/generate-key?key=${deploymentData.migrationSecretKey}`, 'generate-key')}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy URL"
+                            >
+                              {copiedUrl === 'generate-key' ? (
+                                <>
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <a
+                            href={`${deploymentData.deploymentUrl}/api/generate-key?key=${deploymentData.migrationSecretKey}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline font-mono block truncate"
+                            title={`${deploymentData.deploymentUrl}/api/generate-key?key=${deploymentData.migrationSecretKey}`}
+                          >
+                            {truncateUrl(`${deploymentData.deploymentUrl}/api/generate-key?key=${deploymentData.migrationSecretKey}`)}
+                          </a>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-600 mt-2">This will create all necessary database tables and functions for the Assistant Server.</p>
+
+                      <p className="text-xs text-gray-600 mt-3">Run these endpoints in order after your deployment completes. Each requires the same migration key for authentication.</p>
                     </div>
                   </div>
                 )}
