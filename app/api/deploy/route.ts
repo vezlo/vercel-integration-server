@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInstallationById, getDecryptedToken, updateInstallation, getAccountById } from '@/lib/storage';
 import { VercelAPIClient } from '@/lib/vercel-api';
+import { extractVercelErrorMessage } from '@/lib/error-utils';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -181,84 +182,25 @@ export async function POST(request: NextRequest) {
     // Handle Axios errors (Vercel API errors)
     if (error && typeof error === 'object' && 'response' in error) {
       const axiosError = error as any;
-      const responseData = axiosError.response?.data;
       const status = axiosError.response?.status;
       
       console.error('Vercel API Error:', {
         status,
         statusText: axiosError.response?.statusText,
-        data: responseData,
+        data: axiosError.response?.data,
       });
       
-      // Extract user-friendly error message from Vercel API response
-      // Try multiple possible locations for error messages
-      let errorMessage = 'Deployment failed due to a Vercel API error.';
+      let errorMessage = extractVercelErrorMessage(axiosError);
       
-      // Check for error message in various possible locations
-      if (responseData) {
-        // Direct string error
-        if (typeof responseData === 'string') {
-          errorMessage = `Vercel API error: ${responseData}`;
-        }
-        // Error object with message
-        else if (responseData.message && typeof responseData.message === 'string') {
-          errorMessage = `Vercel API error: ${responseData.message}`;
-        }
-        // Error field (could be string or object)
-        else if (responseData.error) {
-          if (typeof responseData.error === 'string') {
-            errorMessage = `Vercel API error: ${responseData.error}`;
-          } else if (typeof responseData.error === 'object') {
-            // Vercel nested error structure: error.error.message
-            if (responseData.error.message && typeof responseData.error.message === 'string') {
-              errorMessage = responseData.error.message;
-            } else if (responseData.error.error && typeof responseData.error.error === 'object' && responseData.error.error.message) {
-              errorMessage = responseData.error.error.message;
-            } else if (responseData.error.error && typeof responseData.error.error === 'string') {
-              errorMessage = responseData.error.error;
-            } else if (responseData.error.code) {
-              // If we have a code but no message, use the code
-              errorMessage = `Vercel API error (${responseData.error.code}): ${responseData.error.message || 'Unknown error'}`;
-            }
-          }
-        }
-        // Error description
-        else if (responseData.error_description) {
-          errorMessage = `Vercel API error: ${responseData.error_description}`;
-        }
-        // Error details array
-        else if (Array.isArray(responseData.errors) && responseData.errors.length > 0) {
-          const errorTexts = responseData.errors.map((e: any) => 
-            e.message || e.error || String(e)
-          ).filter(Boolean);
-          errorMessage = `Vercel API error: ${errorTexts.join(', ')}`;
-        }
-        // Fallback: try to stringify the entire response data if it's an object
-        else if (typeof responseData === 'object' && Object.keys(responseData).length > 0) {
-          // Try to extract any meaningful error text from the object
-          const errorText = JSON.stringify(responseData);
-          if (errorText.length < 500) {
-            errorMessage = `Vercel API error: ${errorText}`;
-          }
-        }
-      }
-      
-      // Handle specific HTTP status codes
+      // Handle specific HTTP status codes with user-friendly messages
       if (status === 401) {
         errorMessage = 'Authentication failed. Please reinstall the integration and try again.';
       } else if (status === 403) {
         errorMessage = 'Permission denied. Please check your Vercel integration permissions.';
       } else if (status === 404) {
         errorMessage = 'Repository or project not found. Please check your repository configuration.';
-      } else if (status === 409 || (status === 400 && responseData?.error?.code === 'ENV_CONFLICT')) {
-        // Conflict error - typically for environment variable conflicts
-        // If we already extracted a message about "already exists", use it
-        // Otherwise provide a generic message
-        if (!errorMessage.includes('already') && !errorMessage.includes('exists') && !errorMessage.includes('ENV_CONFLICT')) {
-          errorMessage = 'A resource already exists (conflict). This may be due to an existing environment variable. The system will attempt to update it.';
-        }
-      } else if (status && errorMessage === 'Deployment failed due to a Vercel API error.') {
-        errorMessage = `Vercel API returned an error (${status}). Please try again later.`;
+      } else if (!errorMessage || errorMessage.includes('HTTP')) {
+        errorMessage = `Vercel API returned an error (${status || 'unknown'}). ${errorMessage || 'Please try again later.'}`;
       }
       
       return NextResponse.json(

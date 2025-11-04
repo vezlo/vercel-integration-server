@@ -97,34 +97,21 @@ function ConfigurationForm() {
       }
 
       if (!response.ok) {
-        // Extract user-friendly error message
+        // Extract error message from API response
         let errorMessage = 'Deployment failed. Please try again.';
         
-        // Prioritize message field (most user-friendly)
         if (data.message && typeof data.message === 'string') {
           errorMessage = data.message;
-        } 
-        // Fallback to error field if it's a string
-        else if (data.error && typeof data.error === 'string') {
-          errorMessage = data.error;
-        }
-        // If error is an object, try to extract meaningful info
-        else if (data.error && typeof data.error === 'object') {
-          if (data.error.message) {
+        } else if (data.error) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error.message) {
             errorMessage = data.error.message;
-          } else if (data.error.error) {
-            errorMessage = String(data.error.error);
-          } else {
-            // Last resort: try to stringify but format it nicely
-            const errorStr = JSON.stringify(data.error, null, 2);
-            errorMessage = `Deployment error: ${errorStr}`;
           }
-        }
-        // If we have details (validation errors), include them
-        else if (data.details && Array.isArray(data.details)) {
-          const detailsStr = data.details.map((d: any) => 
-            d.path ? `${d.path.join('.')}: ${d.message}` : d.message || String(d)
-          ).join(', ');
+        } else if (data.details && Array.isArray(data.details)) {
+          const detailsStr = data.details
+            .map((d: any) => (d.path ? `${d.path.join('.')}: ${d.message}` : d.message || String(d)))
+            .join(', ');
           errorMessage = `Validation error: ${detailsStr}`;
         }
         
