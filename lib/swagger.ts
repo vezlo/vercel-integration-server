@@ -20,12 +20,17 @@ export const getApiDocs = () => {
         schemas: {
           Error: {
             type: 'object',
+            required: ['error', 'message'],
             properties: {
               error: {
                 type: 'string',
+                description: 'Error type or category',
+                example: 'Deployment failed',
               },
               message: {
                 type: 'string',
+                description: 'User-friendly error message explaining what went wrong',
+                example: 'Vercel API error: Authentication failed. Please reinstall the integration and try again.',
               },
             },
           },
