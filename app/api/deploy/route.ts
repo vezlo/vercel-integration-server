@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare environment variables
     const migrationSecretKey = uuidv4(); // Generate random v4 UUID for migration secret key
+    const jwtSecret = uuidv4(); // Generate unique v4 UUID for JWT secret
     
     const envVariables = {
       // User-provided credentials
@@ -116,6 +117,11 @@ export async function POST(request: NextRequest) {
       
       // Migration secret key
       MIGRATION_SECRET_KEY: migrationSecretKey,
+      
+      // Authentication & Admin settings
+      JWT_SECRET: jwtSecret,
+      DEFAULT_ADMIN_EMAIL: 'admin@vezlo.org',
+      DEFAULT_ADMIN_PASSWORD: 'admin123',
     };
 
     // Deploy from GitHub using integration configuration
