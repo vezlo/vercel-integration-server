@@ -71,19 +71,28 @@ export async function POST(request: NextRequest) {
     const installation = await getInstallationById(configurationId);
     
     if (!installation) {
-      return NextResponse.json({ error: 'Installation not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Installation not found', message: 'Installation not found. Please ensure you have completed the OAuth flow.' },
+        { status: 404 }
+      );
     }
 
     // Get account (to get team_id)
     const account = await getAccountById(installation.account_id);
     if (!account) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Account not found', message: 'Account not found. Please try reinstalling the integration.' },
+        { status: 404 }
+      );
     }
 
     // Get decrypted token
     const accessToken = await getDecryptedToken(installation.account_id);
     if (!accessToken) {
-      return NextResponse.json({ error: 'Access token not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Access token not found', message: 'Access token not found. Please try reinstalling the integration.' },
+        { status: 404 }
+      );
     }
 
     // Update status to installing
@@ -156,8 +165,15 @@ export async function POST(request: NextRequest) {
     
     if (error instanceof z.ZodError) {
       console.error('Validation error:', error.errors);
+      const validationMessages = error.errors.map(err => {
+        const path = err.path.join('.');
+        return `${path}: ${err.message}`;
+      }).join(', ');
       return NextResponse.json(
-        { error: 'Invalid request', details: error.errors },
+        { 
+          error: 'Invalid request', 
+          message: `Validation failed: ${validationMessages}. Please check your input and try again.`
+        },
         { status: 400 }
       );
     }
@@ -165,23 +181,102 @@ export async function POST(request: NextRequest) {
     // Handle Axios errors (Vercel API errors)
     if (error && typeof error === 'object' && 'response' in error) {
       const axiosError = error as any;
+      const responseData = axiosError.response?.data;
+      const status = axiosError.response?.status;
+      
       console.error('Vercel API Error:', {
-        status: axiosError.response?.status,
+        status,
         statusText: axiosError.response?.statusText,
-        error: axiosError.response?.data?.error,
-        message: axiosError.response?.data?.message || axiosError.response?.data?.error_description
+        data: responseData,
       });
       
-      const vercelError = axiosError.response?.data?.error || axiosError.response?.data?.message || 'Vercel API error';
+      // Extract user-friendly error message from Vercel API response
+      // Try multiple possible locations for error messages
+      let errorMessage = 'Deployment failed due to a Vercel API error.';
+      
+      // Check for error message in various possible locations
+      if (responseData) {
+        // Direct string error
+        if (typeof responseData === 'string') {
+          errorMessage = `Vercel API error: ${responseData}`;
+        }
+        // Error object with message
+        else if (responseData.message && typeof responseData.message === 'string') {
+          errorMessage = `Vercel API error: ${responseData.message}`;
+        }
+        // Error field (could be string or object)
+        else if (responseData.error) {
+          if (typeof responseData.error === 'string') {
+            errorMessage = `Vercel API error: ${responseData.error}`;
+          } else if (typeof responseData.error === 'object') {
+            // Vercel nested error structure: error.error.message
+            if (responseData.error.message && typeof responseData.error.message === 'string') {
+              errorMessage = responseData.error.message;
+            } else if (responseData.error.error && typeof responseData.error.error === 'object' && responseData.error.error.message) {
+              errorMessage = responseData.error.error.message;
+            } else if (responseData.error.error && typeof responseData.error.error === 'string') {
+              errorMessage = responseData.error.error;
+            } else if (responseData.error.code) {
+              // If we have a code but no message, use the code
+              errorMessage = `Vercel API error (${responseData.error.code}): ${responseData.error.message || 'Unknown error'}`;
+            }
+          }
+        }
+        // Error description
+        else if (responseData.error_description) {
+          errorMessage = `Vercel API error: ${responseData.error_description}`;
+        }
+        // Error details array
+        else if (Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+          const errorTexts = responseData.errors.map((e: any) => 
+            e.message || e.error || String(e)
+          ).filter(Boolean);
+          errorMessage = `Vercel API error: ${errorTexts.join(', ')}`;
+        }
+        // Fallback: try to stringify the entire response data if it's an object
+        else if (typeof responseData === 'object' && Object.keys(responseData).length > 0) {
+          // Try to extract any meaningful error text from the object
+          const errorText = JSON.stringify(responseData);
+          if (errorText.length < 500) {
+            errorMessage = `Vercel API error: ${errorText}`;
+          }
+        }
+      }
+      
+      // Handle specific HTTP status codes
+      if (status === 401) {
+        errorMessage = 'Authentication failed. Please reinstall the integration and try again.';
+      } else if (status === 403) {
+        errorMessage = 'Permission denied. Please check your Vercel integration permissions.';
+      } else if (status === 404) {
+        errorMessage = 'Repository or project not found. Please check your repository configuration.';
+      } else if (status === 409 || (status === 400 && responseData?.error?.code === 'ENV_CONFLICT')) {
+        // Conflict error - typically for environment variable conflicts
+        // If we already extracted a message about "already exists", use it
+        // Otherwise provide a generic message
+        if (!errorMessage.includes('already') && !errorMessage.includes('exists') && !errorMessage.includes('ENV_CONFLICT')) {
+          errorMessage = 'A resource already exists (conflict). This may be due to an existing environment variable. The system will attempt to update it.';
+        }
+      } else if (status && errorMessage === 'Deployment failed due to a Vercel API error.') {
+        errorMessage = `Vercel API returned an error (${status}). Please try again later.`;
+      }
+      
       return NextResponse.json(
-        { error: 'Deployment failed', message: vercelError },
+        { error: 'Deployment failed', message: errorMessage },
         { status: 500 }
       );
     }
 
+    // Handle other errors (network errors, etc.)
     console.error('Unknown error:', error);
+    let errorMessage = 'An unexpected error occurred during deployment.';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message || 'An unexpected error occurred during deployment.';
+    }
+    
     return NextResponse.json(
-      { error: 'Deployment failed', message: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Deployment failed', message: errorMessage },
       { status: 500 }
     );
   }
