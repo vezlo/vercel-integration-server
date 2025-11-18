@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { VercelDeployment, VercelProject, VercelIntegrationConfiguration } from '@/types';
+import { extractVercelErrorMessage, isConflictError } from './error-utils';
 
 const VERCEL_API_BASE = 'https://api.vercel.com';
 
@@ -41,15 +42,30 @@ export class VercelAPIClient {
   }
 
   // Exchange OAuth code for access token
-  static async exchangeOAuthCode(code: string): Promise<any> {
+  static async exchangeOAuthCode(code: string, appName: string = 'assistant-server'): Promise<any> {
+    // Get app-specific credentials
+    let clientId: string;
+    let clientSecret: string;
+    let redirectUri: string;
+
+    if (appName === 'assistant-chat') {
+      clientId = process.env.ASSISTANT_CHAT_CLIENT_ID!;
+      clientSecret = process.env.ASSISTANT_CHAT_CLIENT_SECRET!;
+      redirectUri = process.env.ASSISTANT_CHAT_REDIRECT_URI || process.env.VERCEL_REDIRECT_URI!;
+    } else {
+      clientId = process.env.ASSISTANT_SERVER_CLIENT_ID || process.env.VERCEL_CLIENT_ID!;
+      clientSecret = process.env.ASSISTANT_SERVER_CLIENT_SECRET || process.env.VERCEL_CLIENT_SECRET!;
+      redirectUri = process.env.ASSISTANT_SERVER_REDIRECT_URI || process.env.VERCEL_REDIRECT_URI!;
+    }
+
     const params = new URLSearchParams({
-      client_id: process.env.VERCEL_CLIENT_ID!,
-      client_secret: process.env.VERCEL_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       code,
-      redirect_uri: process.env.VERCEL_REDIRECT_URI!,
+      redirect_uri: redirectUri,
     });
 
-    console.log('🔵 VERCEL OAUTH REQUEST: POST /v2/oauth/access_token');
+    console.log(`🔵 VERCEL OAUTH REQUEST: POST /v2/oauth/access_token (${appName})`);
     console.log('📤 OAuth Params:', Object.fromEntries(params.entries()));
 
     const response = await axios.post(
@@ -100,11 +116,17 @@ export class VercelAPIClient {
   }
 
   // Get GitHub repository ID (from env or API)
-  async getGitHubRepoId(repoPath: string): Promise<string> {
-    // First try to get from environment variable
-    const envRepoId = process.env.ASSISTANT_SERVER_REPO_ID;
+  async getGitHubRepoId(repoPath: string, appName?: string): Promise<string> {
+    // Try to get from environment variable based on app name
+    let envRepoId: string | undefined;
+    if (appName === 'assistant-chat') {
+      envRepoId = process.env.ASSISTANT_CHAT_REPO_ID;
+    } else {
+      envRepoId = process.env.ASSISTANT_SERVER_REPO_ID;
+    }
+
     if (envRepoId) {
-      console.log('✅ Using GitHub repo ID from env:', envRepoId);
+      console.log(`✅ Using GitHub repo ID from env for ${appName || 'assistant-server'}:`, envRepoId);
       return envRepoId;
     }
 
@@ -150,8 +172,9 @@ export class VercelAPIClient {
     branch?: string;
     envVariables?: Record<string, string>;
     target?: 'preview' | 'production';
+    appName?: string;
   }) {
-    const { configurationId, repo, branch = 'main', envVariables = {}, target = 'production' } = params;
+    const { configurationId, repo, branch = 'main', envVariables = {}, target = 'production', appName = 'assistant-server' } = params;
 
     // Convert full GitHub URL to owner/repo format
     let repoPath = repo;
@@ -159,7 +182,7 @@ export class VercelAPIClient {
       repoPath = repo.replace('https://github.com/', '');
     }
 
-    console.log('🚀 Starting deployment:', { configurationId, repoPath, branch, target });
+    console.log('🚀 Starting deployment:', { configurationId, repoPath, branch, target, appName });
 
     // Get integration configuration to retrieve selected projects
     const config = await this.getIntegrationConfiguration(configurationId);
@@ -186,10 +209,10 @@ export class VercelAPIClient {
 
     // Deploy using repoId-based gitSource
     console.log('🔵 API CALL: POST /v13/deployments');
-    const repoId = await this.getGitHubRepoId(repoPath);
+    const repoId = await this.getGitHubRepoId(repoPath, appName);
 
     const deployment = await this.client.post('/v13/deployments', {
-      name: 'assistant-server',
+      name: appName,
       project: projectId,
       target, // 'production' by default
       gitSource: {
@@ -201,7 +224,7 @@ export class VercelAPIClient {
 
     console.log('✅ Deployment created:', deployment.data.id);
     return {
-      project: { id: projectId, name: 'assistant-server' },
+      project: { id: projectId, name: appName },
       deployment: deployment.data,
     };
   }
@@ -212,7 +235,7 @@ export class VercelAPIClient {
     return response.data;
   }
 
-  // Set environment variables
+  // Set environment variables (creates or updates existing ones)
   async setEnvironmentVariables(projectId: string, variables: Record<string, string>) {
     const envs = Object.entries(variables).map(([key, value]) => ({
       key,
@@ -221,11 +244,87 @@ export class VercelAPIClient {
       target: ['production', 'preview', 'development'],
     }));
 
-    const promises = envs.map(env =>
-      this.client.post(`/v10/projects/${projectId}/env`, env)
-    );
+    // Set each environment variable
+    const promises = envs.map(async (env) => {
+      try {
+        await this.client.post(`/v10/projects/${projectId}/env`, env);
+        return { success: true, key: env.key };
+      } catch (error: any) {
+        if (isConflictError(error)) {
+          return {
+            success: false,
+            key: env.key,
+            error: error,
+            isConflict: true,
+            conflictMessage: extractVercelErrorMessage(error),
+          };
+        }
+        return { success: false, key: env.key, error: error };
+      }
+    });
 
-    await Promise.all(promises);
+    const results = await Promise.allSettled(promises);
+    
+    // Process results and collect failures
+    const failures = results
+      .map((result, index) => {
+        if (result.status === 'rejected') {
+          const error = result.reason;
+          const isConflict = isConflictError(error);
+          const errorMessage = extractVercelErrorMessage(error);
+          return {
+            key: envs[index]?.key || 'unknown',
+            error: errorMessage,
+            isConflict,
+            conflictMessage: isConflict ? errorMessage : undefined,
+          };
+        }
+        if (result.value && !result.value.success) {
+          return {
+            key: result.value.key,
+            error: result.value.conflictMessage || extractVercelErrorMessage(result.value.error),
+            isConflict: result.value.isConflict || false,
+            conflictMessage: result.value.conflictMessage,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean) as Array<{ key: string; error: string; isConflict: boolean; conflictMessage?: string }>;
+    
+    if (failures.length === 0) {
+      return;
+    }
+    
+    // Separate conflicts from other errors
+    const conflicts = failures.filter((f) => f.isConflict);
+    const otherErrors = failures.filter((f) => !f.isConflict);
+    
+    // Handle conflicts
+    if (conflicts.length > 0) {
+      const conflictKeys = conflicts.map((f) => f.key);
+      console.error(`❌ Environment variable conflicts (${conflicts.length}):`, conflictKeys.join(', '));
+      
+      const errorMessage = `Cannot set environment variables: ${conflictKeys.length} variable(s) already exist in your Vercel project:\n\n${conflictKeys.join(', ')}\n\nPlease remove these existing environment variables from your Vercel project settings before deploying, or use different variable names.`;
+      throw new Error(errorMessage);
+    }
+    
+    // Handle other errors
+    if (otherErrors.length > 0) {
+      const errorKeys = otherErrors.map((f) => f.key);
+      const uniqueErrors = [...new Set(otherErrors.map((f) => f.error))];
+      
+      console.error(`❌ Failed to set ${otherErrors.length} environment variable(s):`, errorKeys.join(', '));
+      
+      let errorMessage = `Failed to set ${otherErrors.length} of ${envs.length} environment variable(s):\n\n${errorKeys.join(', ')}`;
+      
+      if (uniqueErrors.length > 0 && uniqueErrors.length <= 3) {
+        errorMessage += `\n\nErrors:\n${uniqueErrors.map((e) => `- ${e}`).join('\n')}`;
+      } else if (uniqueErrors.length > 0) {
+        errorMessage += `\n\nMost common error: ${uniqueErrors[0]}`;
+      }
+      
+      throw new Error(errorMessage);
+    }
   }
 }
 

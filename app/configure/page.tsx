@@ -64,34 +64,81 @@ function ConfigurationForm() {
       setIsDeploying(true);
       setError(null);
 
-      const response = await fetch('/api/deploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          configurationId,
-          config,
-          projectName: 'assistant-server',
-        }),
-      });
+      let response;
+      try {
+        response = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            configurationId,
+            config,
+            projectName: 'assistant-server',
+          }),
+        });
+      } catch (fetchError) {
+        // Handle network errors (no internet, CORS, etc.)
+        throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+      }
 
-      const data = await response.json();
+      // Get response text first (in case it's not JSON)
+      let responseText;
+      try {
+        responseText = await response.text();
+      } catch (textError) {
+        throw new Error(`Failed to read server response (Status: ${response.status}). Please try again.`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        // If response is not JSON, create a user-friendly error
+        throw new Error(`Server returned an invalid response (Status: ${response.status}). ${responseText.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
-        let errorMessage = 'Deployment failed';
+        // Extract error message from API response
+        let errorMessage = 'Deployment failed. Please try again.';
         
-        if (data.message) {
+        if (data.message && typeof data.message === 'string') {
           errorMessage = data.message;
         } else if (data.error) {
-          errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error.message) {
+            errorMessage = data.error.message;
+          }
+        } else if (data.details && Array.isArray(data.details)) {
+          const detailsStr = data.details
+            .map((d: any) => (d.path ? `${d.path.join('.')}: ${d.message}` : d.message || String(d)))
+            .join(', ');
+          errorMessage = `Validation error: ${detailsStr}`;
         }
         
         throw new Error(errorMessage);
       }
 
+      // Validate success response structure
+      if (!data.success || !data.data) {
+        throw new Error('Invalid response from server. Please try again.');
+      }
+
+      // Validate required deployment data fields
+      if (!data.data.deploymentUrl || !data.data.migrationSecretKey) {
+        throw new Error('Deployment response missing required data. Please contact support.');
+      }
+
       setSuccess('🎉 Assistant Server deployed successfully!');
       setDeploymentData(data.data);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Deployment failed';
+      let errorMessage = 'Deployment failed. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message || 'Deployment failed. Please try again.';
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       setError(errorMessage);
       console.error('Frontend deployment error:', errorMessage);
     } finally {
@@ -157,11 +204,11 @@ function ConfigurationForm() {
 
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
-              <div className="flex items-center">
-                <div className="text-xl mr-2">⚠️</div>
-                <div>
-                  <h3 className="font-semibold text-red-800">Deployment Failed</h3>
-                  <p className="text-red-700 mt-1">{error}</p>
+              <div className="flex items-start">
+                <div className="text-xl mr-2 mt-0.5">⚠️</div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-800 mb-2">Deployment Failed</h3>
+                  <div className="text-red-700 whitespace-pre-line leading-relaxed">{error}</div>
                 </div>
               </div>
             </div>
