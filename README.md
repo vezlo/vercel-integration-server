@@ -1,15 +1,16 @@
 # Vercel Integration Server
 
-A Next.js TypeScript application that serves as a Vercel integration server for deploying AI Assistant applications. This server handles OAuth token exchange, stores Vercel account tokens securely, and deploys the `assistant-server` application to users' Vercel accounts with environment parameters.
+A Next.js TypeScript application that serves as a Vercel integration server for deploying AI Assistant applications. This server handles OAuth token exchange, stores Vercel account tokens securely, and deploys the `assistant-server` **and** `assistant-chat` applications to users' Vercel accounts with the correct environment parameters.
 
 ## 🎯 Purpose
 
 This integration server enables users to:
 - Install the AI Assistant Server integration from the [Vercel Marketplace](https://vercel.com/marketplace/vezlo-assistant-server)
+- Install the Assistant Chat integration from the [Vercel Marketplace](https://vercel.com/marketplace/vezlo-assistant-chat)
 - Authenticate via OAuth with their Vercel account
-- Configure their Supabase and OpenAI credentials
-- Automatically deploy the AI Assistant Server to their Vercel project
-- Complete the integration setup seamlessly
+- Configure the required credentials for each app
+- Automatically deploy Assistant Server or Assistant Chat to their Vercel project
+- Complete each integration setup seamlessly
 
 ## 🏗️ Architecture
 
@@ -30,10 +31,11 @@ User          Vercel Marketplace    Integration Server
   │ 4. Redirect with Code                   │
   │◄───────────────────────────────────────┤
   │                    │                    │
-  │ 5. Configure Credentials                │
+  │ 5. Assistant Server installs → `/configure`
+  │   Assistant Chat installs  → `/configure/assistant-chat`
   ├───────────────────────────────────────►│
   │                    │                    │
-  │ 6. Deploy Assistant Server              │
+  │ 6. Deploy Assistant Server or Chat     │
   ├───────────────────────────────────────►│
   │                    │                    │
   │ 7. Success & Complete                  │
@@ -68,12 +70,12 @@ npm install
    - Project URL
    - Service Role Key (secret)
 
-### 3. Create Vercel Integration
+### 3. Create Vercel Integration(s)
 
 1. Go to [Vercel Integrations Console](https://vercel.com/dashboard/integrations/console)
 2. Click **Create Integration**
-3. Fill in the details:
-   - **Name**: "AI Assistant Deployer"
+3. Fill in the details for **Assistant Server** (Marketplace listing: [Assistant Server](https://vercel.com/marketplace/vezlo-assistant-server)):
+   - **Name**: "AI Assistant Server"
    - **Redirect URL**: `http://localhost:3000/api/oauth/callback`
    - **Configuration URL**: `http://localhost:3000/configure`
 4. Enable the following permissions:
@@ -82,30 +84,42 @@ npm install
    - ✅ Deployments (Read/Write)
    - ✅ Integration-owned Project Environment Variables (Read/Write)
 5. Save and copy the **Client ID** & **Client Secret**
+6. Repeat for **Assistant Chat** (Marketplace listing: [Assistant Chat](https://vercel.com/marketplace/vezlo-assistant-chat)) using:
+   - **Redirect URL**: `http://localhost:3000/api/oauth/chat-callback`
+   - **Configuration URL**: `http://localhost:3000/configure/assistant-chat`
 
 ### 4. Environment Configuration
 
 Create `.env.local` file:
 
 ```env
-# Vercel Integration Credentials
-VERCEL_CLIENT_ID=oac_[your_client_id]
-VERCEL_CLIENT_SECRET=[your_client_secret]
-VERCEL_REDIRECT_URI=http://localhost:3000/api/oauth/callback
-
-# App Configuration
+# App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Encryption Key (generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+# Encryption Key
 ENCRYPTION_KEY=[32_character_random_string]
 
-# Supabase Configuration
+# Supabase Configuration (Assistant Server)
 SUPABASE_URL=[your_supabase_url]
 SUPABASE_SERVICE_ROLE_KEY=[your_supabase_service_role_key]
 
+# Assistant Server OAuth
+ASSISTANT_SERVER_CLIENT_ID=oac_server
+ASSISTANT_SERVER_CLIENT_SECRET=[server_secret]
+ASSISTANT_SERVER_REDIRECT_URI=http://localhost:3000/api/oauth/callback
+
+# Assistant Chat OAuth
+ASSISTANT_CHAT_CLIENT_ID=oac_chat
+ASSISTANT_CHAT_CLIENT_SECRET=[chat_secret]
+ASSISTANT_CHAT_REDIRECT_URI=http://localhost:3000/api/oauth/chat-callback
+
 # Assistant Server Repository
-ASSISTANT_SERVER_REPO=your-org/assistant-server
-ASSISTANT_SERVER_REPO_ID=[github_repo_id]
+ASSISTANT_SERVER_REPO=https://github.com/vezlo/assistant-server
+ASSISTANT_SERVER_REPO_ID=1066522680
+
+# Assistant Chat Repository
+ASSISTANT_CHAT_REPO=https://github.com/vezlo/assistant-chat
+ASSISTANT_CHAT_REPO_ID=1070840472
 ```
 
 ### 5. Run Locally
@@ -135,7 +149,9 @@ VERCEL_REDIRECT_URI=https://[your-ngrok-id].ngrok.io/api/oauth/callback
 ## 🔄 How It Works
 
 ### 1. OAuth Flow
-- User clicks "Install" on the [Vercel Marketplace](https://vercel.com/marketplace/vezlo-assistant-server)
+- User clicks "Install" on the Assistant Server or Assistant Chat listings:
+  - [Assistant Server Marketplace](https://vercel.com/marketplace/vezlo-assistant-server)
+  - [Assistant Chat Marketplace](https://vercel.com/marketplace/vezlo-assistant-chat)
 - Vercel redirects to OAuth authorization
 - User authorizes the integration
 - Vercel redirects back with authorization code
@@ -146,25 +162,25 @@ VERCEL_REDIRECT_URI=https://[your-ngrok-id].ngrok.io/api/oauth/callback
 - Creates installation record linked to the account
 
 ### 3. Configuration
-- User is redirected to the configure page
-- User enters Supabase and OpenAI credentials
+- Assistant Server installs redirect to `/configure`
+  - Collect Supabase, Database, and OpenAI credentials
+- Assistant Chat installs redirect to `/configure/assistant-chat`
+  - Collect Assistant Server URL (and optional API key)
 - Credentials are validated and prepared for deployment
 
 ### 4. Deployment Process
 - Server retrieves integration configuration from Vercel
 - Determines target project (first selected project)
-- Deploys assistant-server from GitHub repository
-- Sets environment variables on the project
+- Deploys the appropriate app:
+  - Assistant Server → `ASSISTANT_SERVER_REPO`
+  - Assistant Chat → `ASSISTANT_CHAT_REPO`
+- Sets the corresponding environment variables
 - Updates installation status
 
 ### 5. Completion
-- User sees success page with deployment details
-- Three setup URLs are provided for post-deployment configuration:
-  1. **Migration URL**: Creates database schema and tables
-  2. **Seed Default Data URL**: Populates database with default configuration
-  3. **Generate API Key URL**: Creates default API key for src-to-kb library
-- All URLs use the same migration key for authentication
-- User completes integration by returning to Vercel
+- Assistant Server success page shows deployment status + database setup URLs + completion button
+- Assistant Chat success page shows deployment status + completion button (no database steps)
+- User clicks “Complete Integration” to return to Vercel
 
 ## 📁 Project Structure
 
@@ -172,11 +188,13 @@ VERCEL_REDIRECT_URI=https://[your-ngrok-id].ngrok.io/api/oauth/callback
 vercel-integration-server/
 ├── app/
 │   ├── api/
-│   │   ├── oauth/callback/     # OAuth token exchange
+│   │   ├── oauth/callback/     # Assistant Server OAuth callback
+│   │   ├── oauth/chat-callback/# Assistant Chat OAuth callback
 │   │   ├── deploy/            # Deployment API
 │   │   ├── health/            # Health check endpoint
 │   │   └── docs/              # Swagger documentation
-│   ├── configure/             # Configuration page
+│   ├── configure/             # Assistant Server configuration pages
+│   │   └── assistant-chat/    # Assistant Chat configuration page
 │   └── api-docs/              # API documentation UI
 ├── lib/
 │   ├── encryption.ts          # AES-256 encryption utilities
@@ -191,13 +209,14 @@ vercel-integration-server/
 
 ## 🔧 API Endpoints
 
-### OAuth Callback
-- **GET** `/api/oauth/callback`
-- Handles OAuth token exchange and account creation
+### OAuth Callbacks
+- **GET** `/api/oauth/callback` – Assistant Server OAuth
+- **GET** `/api/oauth/chat-callback` – Assistant Chat OAuth
+- Both endpoints share the same logic but use app-specific credentials
 
 ### Deployment
 - **POST** `/api/deploy`
-- Triggers assistant-server deployment to user's Vercel account
+- Triggers the appropriate deployment (Assistant Server or Assistant Chat) based on stored `app_name`
 
 ### Health Check
 - **GET** `/api/health`
@@ -264,15 +283,20 @@ http://localhost:3000/configure?configurationId=test&success=true
 
 ### Environment Variables for Production
 Set these in your Vercel project settings:
-- `VERCEL_CLIENT_ID`
-- `VERCEL_CLIENT_SECRET`
-- `VERCEL_REDIRECT_URI`
+- `ASSISTANT_SERVER_CLIENT_ID`
+- `ASSISTANT_SERVER_CLIENT_SECRET`
+- `ASSISTANT_SERVER_REDIRECT_URI`
+- `ASSISTANT_CHAT_CLIENT_ID`
+- `ASSISTANT_CHAT_CLIENT_SECRET`
+- `ASSISTANT_CHAT_REDIRECT_URI`
 - `NEXT_PUBLIC_APP_URL`
 - `ENCRYPTION_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `ASSISTANT_SERVER_REPO`
 - `ASSISTANT_SERVER_REPO_ID`
+- `ASSISTANT_CHAT_REPO`
+- `ASSISTANT_CHAT_REPO_ID`
 
 ## 🤝 Contributing
 
@@ -314,7 +338,8 @@ This project is dual-licensed:
 
 ## 🔗 Links
 
-- **Vercel Integration**: [https://vercel.com/marketplace/vezlo-assistant-server](https://vercel.com/marketplace/vezlo-assistant-server)
+- **Vercel Integration (Assistant Server)**: [https://vercel.com/marketplace/vezlo-assistant-server](https://vercel.com/marketplace/vezlo-assistant-server)
+- **Vercel Integration (Assistant Chat)**: [https://vercel.com/marketplace/vezlo-assistant-chat](https://vercel.com/marketplace/vezlo-assistant-chat)
 - **Vezlo Website**: [https://vezlo.org](https://vezlo.org)
 - **GitHub Repository**: [https://github.com/vezlo/vercel-integration-server](https://github.com/vezlo/vercel-integration-server)
 

@@ -42,15 +42,30 @@ export class VercelAPIClient {
   }
 
   // Exchange OAuth code for access token
-  static async exchangeOAuthCode(code: string): Promise<any> {
+  static async exchangeOAuthCode(code: string, appName: string = 'assistant-server'): Promise<any> {
+    // Get app-specific credentials
+    let clientId: string;
+    let clientSecret: string;
+    let redirectUri: string;
+
+    if (appName === 'assistant-chat') {
+      clientId = process.env.ASSISTANT_CHAT_CLIENT_ID!;
+      clientSecret = process.env.ASSISTANT_CHAT_CLIENT_SECRET!;
+      redirectUri = process.env.ASSISTANT_CHAT_REDIRECT_URI || process.env.VERCEL_REDIRECT_URI!;
+    } else {
+      clientId = process.env.ASSISTANT_SERVER_CLIENT_ID || process.env.VERCEL_CLIENT_ID!;
+      clientSecret = process.env.ASSISTANT_SERVER_CLIENT_SECRET || process.env.VERCEL_CLIENT_SECRET!;
+      redirectUri = process.env.ASSISTANT_SERVER_REDIRECT_URI || process.env.VERCEL_REDIRECT_URI!;
+    }
+
     const params = new URLSearchParams({
-      client_id: process.env.VERCEL_CLIENT_ID!,
-      client_secret: process.env.VERCEL_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       code,
-      redirect_uri: process.env.VERCEL_REDIRECT_URI!,
+      redirect_uri: redirectUri,
     });
 
-    console.log('🔵 VERCEL OAUTH REQUEST: POST /v2/oauth/access_token');
+    console.log(`🔵 VERCEL OAUTH REQUEST: POST /v2/oauth/access_token (${appName})`);
     console.log('📤 OAuth Params:', Object.fromEntries(params.entries()));
 
     const response = await axios.post(
@@ -101,11 +116,17 @@ export class VercelAPIClient {
   }
 
   // Get GitHub repository ID (from env or API)
-  async getGitHubRepoId(repoPath: string): Promise<string> {
-    // First try to get from environment variable
-    const envRepoId = process.env.ASSISTANT_SERVER_REPO_ID;
+  async getGitHubRepoId(repoPath: string, appName?: string): Promise<string> {
+    // Try to get from environment variable based on app name
+    let envRepoId: string | undefined;
+    if (appName === 'assistant-chat') {
+      envRepoId = process.env.ASSISTANT_CHAT_REPO_ID;
+    } else {
+      envRepoId = process.env.ASSISTANT_SERVER_REPO_ID;
+    }
+
     if (envRepoId) {
-      console.log('✅ Using GitHub repo ID from env:', envRepoId);
+      console.log(`✅ Using GitHub repo ID from env for ${appName || 'assistant-server'}:`, envRepoId);
       return envRepoId;
     }
 
@@ -151,8 +172,9 @@ export class VercelAPIClient {
     branch?: string;
     envVariables?: Record<string, string>;
     target?: 'preview' | 'production';
+    appName?: string;
   }) {
-    const { configurationId, repo, branch = 'main', envVariables = {}, target = 'production' } = params;
+    const { configurationId, repo, branch = 'main', envVariables = {}, target = 'production', appName = 'assistant-server' } = params;
 
     // Convert full GitHub URL to owner/repo format
     let repoPath = repo;
@@ -160,7 +182,7 @@ export class VercelAPIClient {
       repoPath = repo.replace('https://github.com/', '');
     }
 
-    console.log('🚀 Starting deployment:', { configurationId, repoPath, branch, target });
+    console.log('🚀 Starting deployment:', { configurationId, repoPath, branch, target, appName });
 
     // Get integration configuration to retrieve selected projects
     const config = await this.getIntegrationConfiguration(configurationId);
@@ -187,10 +209,10 @@ export class VercelAPIClient {
 
     // Deploy using repoId-based gitSource
     console.log('🔵 API CALL: POST /v13/deployments');
-    const repoId = await this.getGitHubRepoId(repoPath);
+    const repoId = await this.getGitHubRepoId(repoPath, appName);
 
     const deployment = await this.client.post('/v13/deployments', {
-      name: 'assistant-server',
+      name: appName,
       project: projectId,
       target, // 'production' by default
       gitSource: {
@@ -202,7 +224,7 @@ export class VercelAPIClient {
 
     console.log('✅ Deployment created:', deployment.data.id);
     return {
-      project: { id: projectId, name: 'assistant-server' },
+      project: { id: projectId, name: appName },
       deployment: deployment.data,
     };
   }

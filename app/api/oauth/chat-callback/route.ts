@@ -3,10 +3,10 @@ import { handleOAuthCallback } from '../handler';
 
 /**
  * @swagger
- * /api/oauth/callback:
+ * /api/oauth/chat-callback:
  *   get:
- *     summary: OAuth callback handler
- *     description: Handles Vercel OAuth callback, exchanges code for token, creates account and installation
+ *     summary: Assistant Chat OAuth callback handler
+ *     description: Handles OAuth callback for the Assistant Chat integration, exchanges code for token, creates account and installation
  *     parameters:
  *       - in: query
  *         name: code
@@ -22,7 +22,7 @@ import { handleOAuthCallback } from '../handler';
  *         description: URL to redirect to after completion
  *     responses:
  *       302:
- *         description: Redirects to configuration page
+ *         description: Redirects to assistant-chat configuration page
  *       400:
  *         description: Missing authorization code
  *         content:
@@ -37,5 +37,6 @@ import { handleOAuthCallback } from '../handler';
  *               $ref: '#/components/schemas/Error'
  */
 export async function GET(request: NextRequest) {
-  return handleOAuthCallback(request);
+  return handleOAuthCallback(request, 'assistant-chat');
 }
+

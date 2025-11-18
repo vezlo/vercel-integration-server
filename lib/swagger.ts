@@ -42,51 +42,71 @@ export const getApiDocs = () => {
                 type: 'string',
                 description: 'Vercel integration configuration ID',
               },
+              appName: {
+                type: 'string',
+                enum: ['assistant-server', 'assistant-chat'],
+                description: 'Defaults to assistant-server when omitted',
+              },
               config: {
-                type: 'object',
-                properties: {
-                  supabase: {
-                    type: 'object',
-                    properties: {
-                      url: {
-                        type: 'string',
-                        format: 'uri',
-                      },
-                      serviceRoleKey: {
-                        type: 'string',
-                      },
-                    },
-                  },
-                  database: {
-                    type: 'object',
-                    properties: {
-                      host: {
-                        type: 'string',
-                      },
-                      name: {
-                        type: 'string',
-                      },
-                      user: {
-                        type: 'string',
-                      },
-                      password: {
-                        type: 'string',
-                      },
-                    },
-                  },
-                  openai: {
-                    type: 'object',
-                    properties: {
-                      apiKey: {
-                        type: 'string',
-                      },
-                    },
-                  },
-                },
+                oneOf: [
+                  { $ref: '#/components/schemas/AssistantServerConfig' },
+                  { $ref: '#/components/schemas/AssistantChatConfig' },
+                ],
               },
               projectName: {
                 type: 'string',
                 description: 'Optional project name',
+              },
+            },
+          },
+          AssistantServerConfig: {
+            type: 'object',
+            required: ['supabase', 'database', 'openai'],
+            properties: {
+              supabase: {
+                type: 'object',
+                required: ['url', 'serviceRoleKey'],
+                properties: {
+                  url: {
+                    type: 'string',
+                    format: 'uri',
+                  },
+                  serviceRoleKey: {
+                    type: 'string',
+                  },
+                },
+              },
+              database: {
+                type: 'object',
+                required: ['host', 'name', 'user', 'password'],
+                properties: {
+                  host: { type: 'string' },
+                  name: { type: 'string' },
+                  user: { type: 'string' },
+                  password: { type: 'string' },
+                },
+              },
+              openai: {
+                type: 'object',
+                required: ['apiKey'],
+                properties: {
+                  apiKey: { type: 'string' },
+                },
+              },
+            },
+          },
+          AssistantChatConfig: {
+            type: 'object',
+            required: ['assistantServerUrl'],
+            properties: {
+              assistantServerUrl: {
+                type: 'string',
+                format: 'uri',
+                description: 'Base URL of the Assistant Server instance',
+              },
+              assistantServerApiKey: {
+                type: 'string',
+                description: 'Optional API key if the Assistant Server requires authentication',
               },
             },
           },
