@@ -62,6 +62,8 @@ const AssistantServerConfigSchema = z.object({
 const AssistantChatConfigSchema = z.object({
   assistantServerUrl: z.string().url(),
   assistantServerApiKey: z.string().optional().nullable().transform((value) => value || ''),
+  supabaseUrl: z.string().optional().nullable().transform((value) => value || ''),
+  supabaseAnonKey: z.string().optional().nullable().transform((value) => value || ''),
 });
 
 type AssistantServerConfig = z.infer<typeof AssistantServerConfigSchema>;
@@ -129,6 +131,8 @@ export async function POST(request: NextRequest) {
       const chatConfig = parsedConfig as AssistantChatConfig;
       envVariables = {
         VITE_ASSISTANT_SERVER_URL: chatConfig.assistantServerUrl,
+        VITE_SUPABASE_URL: chatConfig.supabaseUrl || '',
+        VITE_SUPABASE_ANON_KEY: chatConfig.supabaseAnonKey || '',
       };
 
       if (chatConfig.assistantServerApiKey) {

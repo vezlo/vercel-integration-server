@@ -12,6 +12,8 @@ function AssistantChatConfigurationForm() {
   const [config, setConfig] = useState({
     assistantServerUrl: '',
     assistantServerApiKey: '',
+    supabaseUrl: '',
+    supabaseAnonKey: '',
   });
 
   const [isDeploying, setIsDeploying] = useState(false);
@@ -54,6 +56,8 @@ function AssistantChatConfigurationForm() {
             config: {
               assistantServerUrl: config.assistantServerUrl,
               assistantServerApiKey: config.assistantServerApiKey,
+              supabaseUrl: config.supabaseUrl,
+              supabaseAnonKey: config.supabaseAnonKey,
             },
           }),
         });
@@ -261,6 +265,42 @@ function AssistantChatConfigurationForm() {
                       placeholder="sk-live-..."
                     />
                     <p className="text-xs text-gray-500 mt-1">Provide this only if your Assistant Server requires authentication.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg p-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-blue-600 font-semibold">2</span>
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900">Supabase Credentials (Optional)</h2>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">These credentials are needed for realtime updates.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Supabase URL (optional)</label>
+                    <input
+                      type="url"
+                      value={config.supabaseUrl}
+                      onChange={(e) => setConfig({ ...config, supabaseUrl: e.target.value })}
+                      disabled={isLoading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      placeholder="https://your-project.supabase.co"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Your Supabase project URL.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Supabase Anon Key (optional)</label>
+                    <input
+                      type="password"
+                      value={config.supabaseAnonKey}
+                      onChange={(e) => setConfig({ ...config, supabaseAnonKey: e.target.value })}
+                      disabled={isLoading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Your Supabase anonymous key.</p>
                   </div>
                 </div>
               </div>
