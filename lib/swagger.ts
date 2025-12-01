@@ -108,6 +108,15 @@ export const getApiDocs = () => {
                 type: 'string',
                 description: 'Optional API key if the Assistant Server requires authentication',
               },
+              supabaseUrl: {
+                type: 'string',
+                format: 'uri',
+                description: 'Optional Supabase project URL',
+              },
+              supabaseAnonKey: {
+                type: 'string',
+                description: 'Optional Supabase anonymous key',
+              },
             },
           },
           DeploymentResponse: {
