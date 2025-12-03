@@ -236,6 +236,7 @@ export class VercelAPIClient {
   }
 
   // Set environment variables (creates or updates existing ones)
+  // Sequential processing to avoid Vercel API conflicts when multiple variables are set simultaneously
   async setEnvironmentVariables(projectId: string, variables: Record<string, string>) {
     const envs = Object.entries(variables).map(([key, value]) => ({
       key,
@@ -244,52 +245,38 @@ export class VercelAPIClient {
       target: ['production', 'preview', 'development'],
     }));
 
-    // Set each environment variable
-    const promises = envs.map(async (env) => {
+    const failures: Array<{ key: string; error: string; isConflict: boolean; conflictMessage?: string }> = [];
+
+    // Process environment variables sequentially to avoid Vercel API conflicts
+    for (const env of envs) {
       try {
         await this.client.post(`/v10/projects/${projectId}/env`, env);
-        return { success: true, key: env.key };
+        console.log(`✅ Set environment variable: ${env.key}`);
       } catch (error: any) {
-        if (isConflictError(error)) {
-          return {
-            success: false,
-            key: env.key,
-            error: error,
-            isConflict: true,
-            conflictMessage: extractVercelErrorMessage(error),
-          };
+        // Safely extract error information with fallbacks
+        let errorMessage: string;
+        let isConflict: boolean;
+        
+        try {
+          errorMessage = extractVercelErrorMessage(error);
+          isConflict = isConflictError(error);
+        } catch (extractionError) {
+          // Fallback if error extraction fails
+          errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+          isConflict = false;
+          console.error(`⚠️ Error extraction failed for ${env.key}:`, extractionError);
         }
-        return { success: false, key: env.key, error: error };
+        
+        console.error(`❌ Failed to set ${env.key}:`, errorMessage);
+        
+        failures.push({
+          key: env.key,
+          error: errorMessage,
+          isConflict,
+          conflictMessage: isConflict ? errorMessage : undefined,
+        });
       }
-    });
-
-    const results = await Promise.allSettled(promises);
-    
-    // Process results and collect failures
-    const failures = results
-      .map((result, index) => {
-        if (result.status === 'rejected') {
-          const error = result.reason;
-          const isConflict = isConflictError(error);
-          const errorMessage = extractVercelErrorMessage(error);
-          return {
-            key: envs[index]?.key || 'unknown',
-            error: errorMessage,
-            isConflict,
-            conflictMessage: isConflict ? errorMessage : undefined,
-          };
-        }
-        if (result.value && !result.value.success) {
-          return {
-            key: result.value.key,
-            error: result.value.conflictMessage || extractVercelErrorMessage(result.value.error),
-            isConflict: result.value.isConflict || false,
-            conflictMessage: result.value.conflictMessage,
-          };
-        }
-        return null;
-      })
-      .filter(Boolean) as Array<{ key: string; error: string; isConflict: boolean; conflictMessage?: string }>;
+    }
     
     if (failures.length === 0) {
       return;
