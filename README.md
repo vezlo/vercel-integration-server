@@ -171,10 +171,10 @@ VERCEL_REDIRECT_URI=https://[your-ngrok-id].ngrok.io/api/oauth/callback
 ### 4. Deployment Process
 - Server retrieves integration configuration from Vercel
 - Determines target project (first selected project)
+- Sets environment variables sequentially (to avoid Vercel API conflicts)
 - Deploys the appropriate app:
   - Assistant Server → `ASSISTANT_SERVER_REPO`
   - Assistant Chat → `ASSISTANT_CHAT_REPO`
-- Sets the corresponding environment variables
 - Updates installation status
 
 ### 5. Completion
